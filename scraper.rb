@@ -25,6 +25,12 @@ def date_from(text)
   Date.parse(text).to_s rescue binding.pry
 end
 
+def parse_cfemail(str)
+  list = str.text.scan(/../).map { |str| str.to_i(16) }
+  key = list.shift
+  list.map { |i| (key ^ i).chr }.join
+end
+
 def scrape_mp(url)
   noko = noko_for(url)
   content = noko.css('div#contenido')
@@ -35,7 +41,7 @@ def scrape_mp(url)
     area: content.xpath('.//b[contains(.,"Distrito al que representa")]/following-sibling::text()').text.tidy,
     birth_date: date_from(content.xpath('.//b[contains(.,"Nacimiento")]/following-sibling::text()').text.tidy),
     phone: contact.xpath('.//b[contains(.,"Teléfono")]/following-sibling::text()').text.tidy,
-    # email: TODO: parse JS
+    email: parse_cfemail(noko.css('a.__cf_email__/@data-cfemail')),
     source: url,
   }
   data[:image] = URI.join(url, data[:image]).to_s unless data[:image].to_s.empty?
