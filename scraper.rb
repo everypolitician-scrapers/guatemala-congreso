@@ -40,7 +40,6 @@ def scrape_mp(url)
     image: content.css('article img/@src').first.text,
     area: content.xpath('.//b[contains(.,"Distrito al que representa")]/following-sibling::text()').text.tidy,
     birth_date: date_from(content.xpath('.//b[contains(.,"Nacimiento")]/following-sibling::text()').text.tidy),
-    phone: contact.xpath('.//b[contains(.,"Teléfono")]/following-sibling::text()').text.tidy,
     email: parse_cfemail(noko.css('a.__cf_email__/@data-cfemail').text),
     source: url,
   }
@@ -59,19 +58,11 @@ def scrape_list(url)
       name: tds[1].text.tidy,
       party: tds[2].text.tidy,
       faction: tds[3].text.tidy,
-      term: 7,
+      term: 8,
     }.merge scrape_mp(mp_url)
-    ScraperWiki.save_sqlite([:id, :term], data)
+    warn data
+    # ScraperWiki.save_sqlite([:id, :term], data)
   end
 end
-
-term = { 
-  id: 7,
-  name: 'VII Legislatura de Guatemala',
-  start_date: '2012-01-07',
-  end_date: '2016-01-14',
-  source: 'https://es.wikipedia.org/wiki/VII_Legislatura_de_Guatemala',
-}
-ScraperWiki.save_sqlite([:id], term, 'terms')
 
 scrape_list('http://www.congreso.gob.gt/legislaturas.php')
