@@ -60,8 +60,8 @@ def scrape_list(url)
       faction: tds[3].text.tidy,
       term: 8,
     }.merge scrape_mp(mp_url)
-    warn data
-    # ScraperWiki.save_sqlite([:id, :term], data)
+    # warn data
+    ScraperWiki.save_sqlite([:id, :term], data)
   end
 end
 
