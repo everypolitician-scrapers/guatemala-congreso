@@ -52,7 +52,7 @@ def scrape_list(url)
       faction: tds[3].text.tidy,
       term:    8,
     }.merge scrape_mp(mp_url)
-    #  warn data
+    # puts data.reject { |_, v| v.to_s.empty? }.sort_by { |k, _| k }.to_h
     ScraperWiki.save_sqlite(%i(id term), data)
   end
 end
