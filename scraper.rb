@@ -1,5 +1,6 @@
 #!/bin/env ruby
 # encoding: utf-8
+# frozen_string_literal: true
 
 require 'nokogiri'
 require 'open-uri'
@@ -11,7 +12,7 @@ OpenURI::Cache.cache_path = '.cache'
 
 class String
   def tidy
-    self.gsub(/[[:space:]]+/, ' ').strip
+    gsub(/[[:space:]]+/, ' ').strip
   end
 end
 
@@ -35,32 +36,31 @@ def scrape_mp(url)
   content = noko.css('div#contenido')
   contact = noko.css('div#votos')
 
-  data = { 
-    image: content.css('article img/@src').first.text,
-    area: content.xpath('.//b[contains(.,"Distrito al que representa")]/following-sibling::text()').text.tidy,
+  data = {
+    image:      content.css('article img/@src').first.text,
+    area:       content.xpath('.//b[contains(.,"Distrito al que representa")]/following-sibling::text()').text.tidy,
     birth_date: date_from(content.xpath('.//b[contains(.,"Nacimiento")]/following-sibling::text()').text.tidy),
-    email: parse_cfemail(noko.css('a.__cf_email__/@data-cfemail').text),
-    source: url,
+    email:      parse_cfemail(noko.css('a.__cf_email__/@data-cfemail').text),
+    source:     url,
   }
   data[:image] = URI.join(url, data[:image]).to_s unless data[:image].to_s.empty?
   data
 end
-
 
 def scrape_list(url)
   noko = noko_for(url)
   noko.css('table.dir_tabla tr').drop(1).each do |tr|
     tds = tr.css('td')
     mp_url = tds[1].css('a/@href').text
-    data = { 
-      id: mp_url[/id=(\d+)/, 1],
-      name: tds[1].text.tidy,
-      party: tds[2].text.tidy,
+    data = {
+      id:      mp_url[/id=(\d+)/, 1],
+      name:    tds[1].text.tidy,
+      party:   tds[2].text.tidy,
       faction: tds[3].text.tidy,
-      term: 8,
+      term:    8,
     }.merge scrape_mp(mp_url)
-    # warn data
-    ScraperWiki.save_sqlite([:id, :term], data)
+    #  warn data
+    ScraperWiki.save_sqlite(%i(id term), data)
   end
 end
 
