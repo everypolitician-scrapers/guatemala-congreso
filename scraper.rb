@@ -9,53 +9,74 @@ require 'scraperwiki'
 require 'open-uri/cached'
 OpenURI::Cache.cache_path = '.cache'
 
-def noko_for(url)
-  Nokogiri::HTML(open(url).read)
-end
+class Members < Scraped::HTML
+  def member_urls
+    noko.css('a.dipu-name/@href').map(&:text)
+  end
 
-def date_from(text)
-  return if text.to_s.empty?
-  Date.parse(text).to_s rescue binding.pry
-end
-
-def parse_cfemail(str)
-  list = str.scan(/../).map { |str| str.to_i(16) }
-  key = list.shift
-  list.map { |i| (key ^ i).chr }.join
-end
-
-def scrape_mp(url)
-  noko = noko_for(url)
-  content = noko.css('div#contenido')
-  contact = noko.css('div#votos')
-
-  data = {
-    image:      content.css('article img/@src').first.text,
-    area:       content.xpath('.//b[contains(.,"Distrito al que representa")]/following-sibling::text()').text.tidy,
-    birth_date: date_from(content.xpath('.//b[contains(.,"Nacimiento")]/following-sibling::text()').text.tidy),
-    email:      parse_cfemail(noko.css('a.__cf_email__/@data-cfemail').text),
-    source:     url,
-  }
-  data[:image] = URI.join(url, data[:image]).to_s unless data[:image].to_s.empty?
-  data
-end
-
-def scrape_list(url)
-  noko = noko_for(url)
-  noko.css('table.dir_tabla tr').drop(1).each do |tr|
-    tds = tr.css('td')
-    mp_url = tds[1].css('a/@href').text
-    data = {
-      id:      mp_url[/id=(\d+)/, 1],
-      name:    tds[1].text.tidy,
-      party:   tds[2].text.tidy,
-      faction: tds[3].text.tidy,
-      term:    8,
-    }.merge scrape_mp(mp_url)
-    # puts data.reject { |_, v| v.to_s.empty? }.sort_by { |k, _| k }.to_h
-    ScraperWiki.save_sqlite(%i(id term), data)
+  def next_page
+    noko.xpath('//a[contains(text(),"Siguiente")]/@href').text
   end
 end
 
-ScraperWiki.sqliteexecute('DELETE FROM data') rescue nil
-scrape_list('https://www.congreso.gob.gt/legislaturas.php')
+class Member < Scraped::HTML
+  field :id do
+    Addressable::URI.parse(url).query_values['id']
+  end
+
+  field :name do
+    bio.css('h2').text.tidy
+  end
+
+  field :party do
+    party_info.split(' - ').first
+  end
+
+  field :party_id do
+    party_info.split(' - ').last
+  end
+
+  field :district do
+    bio.xpath('.//p[contains(.,"Distrito al que representa")]//following-sibling::p[1]').text.tidy
+  end
+
+  field :birth_date do
+    bio.xpath('.//p[contains(.,"Fecha de nacimiento")]//following-sibling::p[1]').text.tidy.split('-').reverse.join('-')
+  end
+
+  field :email do
+    noko.css('.emai-diputado').text
+  end
+
+  field :photo do
+    bio.css('img.img-responsive/@src').text
+  end
+
+  private
+
+  def bio
+    noko.css('#datos-generales')
+  end
+
+  def party_info
+    bio.xpath('.//p[contains(.,"Partido al que representa")]//a').text.tidy
+  end
+end
+
+def scraper(h)
+  url, klass = h.to_a.first
+  klass.new(response: Scraped::Request.new(url: url).response)
+end
+
+url = 'https://www.congreso.gob.gt/el-congreso/organos-del-congreso/diputados-buscador-general/?tipo=Legislatura&legislatura=8'
+members_pages = []
+while !url.empty?
+  page = scraper(url => Members)
+  members_pages += page.member_urls
+  url = page.next_page
+end
+
+data = members_pages.map { |url| scraper(url => Member).to_h }
+data.each { |mem| puts mem.reject { |_, v| v.to_s.empty? }.sort_by { |k, _| k }.to_h } if ENV['MORPH_DEBUG']
+ScraperWiki.sqliteexecute('DROP TABLE data') rescue nil
+ScraperWiki.save_sqlite(%i[id], data)
